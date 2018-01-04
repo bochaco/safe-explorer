@@ -1,0 +1,22 @@
+{
+  "name": "safe-explorer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "neutrino build",
+    "start": "neutrino start",
+    "lint": "neutrino lint",
+    "test": "neutrino test"
+  },
+  "dependencies": {
+    "preact": "^8.2.7",
+    "preact-compat": "^3.17.0"
+  },
+  "devDependencies": {
+    "@neutrinojs/airbnb": "^8.0.14",
+    "@neutrinojs/jest": "^8.0.14",
+    "@neutrinojs/preact": "^8.0.14",
+    "neutrino": "^8.0.14"
+  }
+}
