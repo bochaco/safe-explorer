@@ -17,17 +17,19 @@ export default class App extends Component {
     };
 
     this.handleInputChange = this.handleInputChange.bind(this);
+    this.fetchPublicMD = this.fetchPublicMD.bind(this);
+    this.fetchPrivateMD = this.fetchPrivateMD.bind(this);
     this.handleExplore = this.handleExplore.bind(this);
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     console.log('Authorising app...');
-    return window.safeApp.initialise(appInfo)
-      .then(res => (this.setState({ appHandle: res })))
-      .then(() => (console.log('App handle retrieved ', this.state.appHandle)))
-      .then(() => window.safeApp.authorise(this.state.appHandle, {}))
-      .then(authUri => window.safeApp.connectAuthorised(this.state.appHandle, authUri))
-      .then(() => (console.log('Connected to the SAFE Network')));
+    const safeAppHandle = await window.safeApp.initialise(appInfo);
+    this.setState({ appHandle: safeAppHandle });
+    console.log('App handle retrieved ', safeAppHandle);
+    const authUri = await window.safeApp.authorise(this.state.appHandle, {});
+    await window.safeApp.connectAuthorised(safeAppHandle, authUri);
+    console.log('Connected to the SAFE Network');
   }
 
   handleInputChange(event) {
@@ -40,20 +42,61 @@ export default class App extends Component {
     });
   }
 
+  async fetchPublicMD() {
+    const mdHandle = await window.safeMutableData.newPublic(
+      this.state.appHandle,
+      this.state.xorname,
+      this.state.typeTag,
+    );
+    const nameTag = await window.safeMutableData.getNameAndTag(mdHandle);
+    const mdVersion = await window.safeMutableData.getVersion(mdHandle);
+    const mdEntries = [];
+    const entriesHandle = await window.safeMutableData.getEntries(mdHandle);
+    await window.safeMutableDataEntries.forEach(entriesHandle, (k, v) => {
+      mdEntries.push({
+        key: k.toString(),
+        value: v.buf.toString(),
+        version: v.version,
+      });
+    });
+    const permsHandle = await window.safeMutableData.getPermissions(mdHandle);
+    const permSetsList = await window.safeMutableDataPermissions.listPermissionSets(permsHandle);
+    const mdPermissions = permSetsList.map((permSet) => {
+      // FIXME: const signKey = window.safeCryptoPubSignKey.getRaw(permSet.signKey);
+      const signKey = '';
+      return {
+        perms: permSet.permSet,
+        signKey,
+      };
+    });
+    this.setState({
+      mdName: nameTag.name.buffer.toString(),
+      mdTypeTag: nameTag.type_tag,
+      mdVersion,
+      mdEntries,
+      mdPermissions,
+    });
+  }
+
+  async fetchPrivateMD() {
+    console.log('PRIVATE ', this.state.xorname);
+    await window.safeMutableData.newPrivate(
+      this.state.appHandle,
+      this.state.xorname,
+      this.state.typeTag,
+      this.state.secEncKey,
+      this.state.nonce,
+    );
+  }
+
   handleExplore() {
-    console.log('Explore MD at: ', this.state.xorname);
+    console.log('Exploring', this.state.accessType, 'MutableData with name/address:', this.state.xorname);
     if (this.state.accessType === 'public') {
-      return window.safeMutableData.newPublic(this.state.appHandle, this.state.xorname)
-        .then(mdHandle => window.safeMutableData.getNameAndTag(mdHandle))
-        .then(nametag => console.log('NAME:', nametag.name,buffer));
+      this.fetchPublicMD();
     } else {
-      console.log('PRIVATE ', this.state.xorname);
-      return window.safeMutableData.newPrivate(this.state.appHandle,
-                                        this.state.xorname,
-                                        this.state.typeTag,
-                                        this.state.secEncKey,
-                                        this.state.nonce);
+      this.fetchPrivateMD();
     }
+    console.log('MutableData\'s data:', this.state);
   }
 
   render() {
@@ -102,7 +145,6 @@ export default class App extends Component {
         <div>
           MutableData type tag:
           <input
-            disabled={this.state.accessType === 'public'}
             name="typeTag"
             type="text"
             onChange={this.handleInputChange}
@@ -112,6 +154,38 @@ export default class App extends Component {
           <button name="explore" type="button" onClick={this.handleExplore} >
           Explore
           </button>
+        </div>
+        <div>
+          MutableData info:<br />
+          name/address: {this.state.mdName}<br />
+          type tag: {this.state.mdTypeTag}<br />
+          version: {this.state.mdVersion}<br />
+        </div>
+        <div>
+          MutableData permissions:<br />
+          <ul>
+            {this.state.mdPermissions &&
+              this.state.mdPermissions.map(mdPerm => (
+                <li>permissions: {Object.keys(mdPerm.perms).map(perm =>
+                  <span><input type="checkbox" disabled checked={mdPerm.perms[perm]} />{perm}</span>)}<br />
+                  sign key: {mdPerm.signKey}<br />
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <div>
+          MutableData entries:<br />
+          <ul>
+            {this.state.mdEntries &&
+              this.state.mdEntries.map(mdEntry => (
+                <li>key: {mdEntry.key}<br />
+                  value: {mdEntry.value}<br />
+                  version: {mdEntry.version}<br />
+                </li>
+              ))
+            }
+          </ul>
         </div>
       </div>
     );
